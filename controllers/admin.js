@@ -25,6 +25,7 @@ router.get('/',(req,res) =>
     }
  
 });
+// Đăng nhập
 router.get('/login',(req, res)=>
 {
     res.render('../views/admin/login.ejs');
@@ -44,6 +45,7 @@ router.post('/login', (req, res) =>
         { 
             username : uname, password : pwdHashed 
         };
+        // câu lệnh query truy xuất
         db.collection("admins").findOne(query, (err, result) =>
         {
             if (err) throw err;
@@ -61,6 +63,7 @@ router.post('/login', (req, res) =>
         });            
     }); 
 });
+// Hiển thị trang chủ
 router.get('/home', (req,res) => 
 {
     // kiểm tra nếu có session thì render trang home
@@ -75,10 +78,97 @@ router.get('/home', (req,res) =>
     }
    
 });
+// Đăng xuất
 router.get('/logout', (req, res) => 
 {
     delete req.session.admin;
     res.redirect('login');
+});
+// Hiển thị category
+router.get('/listcategory',(req,res)=>
+{
+    if (req.session.admin) 
+    {
+        //kết nối database
+    MongoClient.connect(url,(err, conn) =>
+    {
+        if (err) throw err; 
+        var db = conn.db("LTC");
+        // câu lệnh query select
+        var query = {}
+        db.collection("categories").find(query).toArray((err,result) => 
+        {
+            if (err) throw err;           
+            res.render('../views/admin/listcategory.ejs', {cates :result});
+            conn.close(); 
+        });           
+    });        
+    }
+    else
+    {
+        res.redirect('login');
+    }
+});
+//Thêm category
+router.get('/addcategory',(req,res)=>
+{
+    if (req.session.admin) 
+    {
+        res.render('../views/admin/addcategory.ejs');
+    }
+    else
+    {
+        res.redirect('login');
+    }
+});
+router.post('/addcategory',(req,res)=>
+{
+    var cname = req.body.catname;
+    //kết nối database
+    MongoClient.connect(url,(err, conn) =>
+    {
+        if (err) throw err; 
+        var db = conn.db("LTC");
+        // câu lệnh query insert
+        var category = {name : cname};
+        db.collection("categories").insertOne(category,(err,result) => 
+        {
+            if (err) throw err;
+            // kiểm tra nếu số lượng được thêm có lớn hơn không
+            // không rõ vì sao dùng insertOne không nhận thuộc tính insertedCount
+            // nên đành phải xoá bỏ validate
+            res.redirect('listcategory');
+            // if (result.insertedCount > 0) 
+            // {
+                //đoạn code dòng 140 vào đây
+            // }
+            // else
+            // {
+            //     res.redirect('addcategory')
+            // }
+            conn.close(); 
+        });           
+    }); 
+});
+// Xoá category
+router.get('/deletecategory',(req,res) => 
+{
+    var id = req.query.id;
+    //kết nối database
+    MongoClient.connect(url,(err, conn) =>
+    {
+        if (err) throw err; 
+        var db = conn.db("LTC");
+        // câu lệnh query delete
+        var ObjectId = require('mongodb').ObjectId;
+        var query = {_id: ObjectId(id) }; 
+        db.collection("categories").deleteOne(query,(err,result) => 
+        {
+            if (err) throw err;
+            res.redirect('listcategory');
+            conn.close(); 
+        });           
+    }); 
 });
 
 module.exports = router;
