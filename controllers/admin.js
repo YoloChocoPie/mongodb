@@ -1,222 +1,196 @@
+//CLI: npm install multer --save
 var express = require('express');
 var router = express.Router();
-// mã hoá mật khẩu
-var crypto = require('crypto');
-// install mongo và khai báo
-// khai báo thông tin về database đã đăng kí tại web
-var MongoClient = require('mongodb').MongoClient;
-const { defaultMaxListeners } = require('events');
-var url = "mongodb+srv://LTC:3SkFmOMAV791Uj5Y@clusterltc.ojybn.mongodb.net/LTC";
-
-
-//routing
-
-router.get('/',(req,res) => 
-{
-    // kiểm tra nếu đã đăng nhập rồi thì sẽ render home
-    // không thì lại đá về trang login
-    if (req.session.admin) 
-    {
-        res.redirect('home');    
-    }
-    else
-    {
-        res.redirect('login');
-    }
- 
+// middleware
+var multer = require('multer');
+var upload = multer({});
+// utils
+var MyUtil = require("../utils/MyUtil.js");
+var EmailUtil = require("../utils/EmailUtil.js");
+// daos
+var pathDAO = "../daos/mongodb";
+var AdminDAO = require(pathDAO + "/AdminDAO.js");
+var OrderDAO = require(pathDAO + "/OrderDAO.js");
+var CategoryDAO = require(pathDAO + "/CategoryDAO.js");
+var ProductDAO = require(pathDAO + "/ProductDAO.js");
+var CustomerDAO = require(pathDAO + "/CustomerDAO.js");
+// routes
+router.get(['/', '/home'], function (req, res) {
+  if (req.session.admin) {
+    res.render('../views/admin/home.ejs');
+  } else {
+    res.redirect('./login');
+  }
 });
-// Đăng nhập
-router.get('/login',(req, res)=>
-{
-    res.render('../views/admin/login.ejs');
+// admin
+router.get('/login', function (req, res) {
+  res.render('../views/admin/login.ejs');
 });
-router.post('/login', (req, res) => 
-{
-    var uname = req.body.username;
-    var pwd = req.body.password;
-    //thực hiện mã hoá
-    var pwdHashed= crypto.createHash('md5').update(pwd).digest('hex');
-    //kết nối database
-    MongoClient.connect(url,(err, conn) =>
-    {
-        if (err) throw err; 
-        var db = conn.db("LTC");
-        var query = 
-        { 
-            username : uname, password : pwdHashed 
-        };
-        // câu lệnh query truy xuất
-        db.collection("admins").findOne(query, (err, result) =>
-        {
-            if (err) throw err;
-            if (result) 
-            {
-                // nếu đăng nhập thành công lưu lại session
-                req.session.admin = result;
-                res.redirect('home');
-            }
-            else
-            {
-                res.redirect('login');
-            }
-            conn.close();             
-        });            
-    }); 
+router.post('/login', async function (req, res) {
+  var username = req.body.txtUsername;
+  var password = req.body.txtPassword;
+  var admin = await AdminDAO.selectByUsernameAndPassword(username, password);
+  if (admin) {
+    req.session.admin = admin;
+    res.redirect('./home');
+  } else {
+    MyUtil.showAlertAndRedirect(res, 'Vui lòng thử lại!', './login');
+  }
 });
-// Hiển thị trang chủ
-router.get('/home', (req,res) => 
-{
-    // kiểm tra nếu có session thì render trang home
-    // không có thì đá về trang login
-    if (req.session.admin) 
-    {
-        res.render('../views/admin/home.ejs');
-    }
-    else
-    {
-        res.redirect('login');
-    }
+router.get('/logout', function (req, res) {
+  delete req.session.admin;
+  res.redirect('./home');
+});
+// category
+router.get('/listcategory', async function (req, res) {
+  var categories = await CategoryDAO.selectAll();
+  res.render('../views/admin/listcategory.ejs', { cats: categories });
+});
+router.post('/addcategory', async function (req, res) {
+  var name = req.body.txtName;
+  var category = { name: name };
+  var result = await CategoryDAO.insert(category);
+  MyUtil.showAlertAndRedirect(res, 'Thành công!', './listcategory');
+  // if (result) {
+    
+  // } else {
+  //   MyUtil.showAlertAndRedirect(res, 'SORRY BABY!', './listcategory');
+  // }
+});
+router.post('/updatecategory', async function (req, res) {
+  var _id = req.body.txtID;
+  var name = req.body.txtName;
+  var category = { _id: _id, name: name };
+  var result = await CategoryDAO.update(category);
+  MyUtil.showAlertAndRedirect(res, 'Thành công!', './listcategory');
+  // if (result) {
+  //   MyUtil.showAlertAndRedirect(res, 'OK BABY!', './listcategory');
+  // } else {
+  //   MyUtil.showAlertAndRedirect(res, 'SORRY BABY!', './listcategory');
+  // }
+});
+router.post('/deletecategory', async function (req, res) {
+  var _id = req.body.txtID;
+  var result = await CategoryDAO.delete(_id);
+  MyUtil.showAlertAndRedirect(res, 'Thành công!', './listcategory');
+  // if (result) {
    
+  // } else {
+  //   MyUtil.showAlertAndRedirect(res, 'SORRY BABY!', './listcategory');
+  // }
 });
-// Đăng xuất
-router.get('/logout', (req, res) => 
-{
-    delete req.session.admin;
-    res.redirect('login');
+// product
+router.get('/listproduct', async function (req, res) {
+  // get data
+  var categories = await CategoryDAO.selectAll();
+  var products = await ProductDAO.selectAll();
+  // pagination
+  var sizePage = 4;
+  var noPages = Math.ceil(products.length / sizePage);
+  var curPage = 1;
+  if (req.query.page) curPage = req.query.page; // /listproduct?page=XXX
+  var offset = (curPage - 1) * sizePage;
+  products = products.slice(offset, offset + sizePage);
+  // render view
+  res.render('../views/admin/listproduct.ejs', { cats: categories, prods: products, noPages: noPages, curPage: curPage });
 });
-// Hiển thị category
-router.get('/listcategory',(req,res)=>
-{
-    if (req.session.admin) 
-    {
-        //kết nối database
-    MongoClient.connect(url,(err, conn) =>
-    {
-        if (err) throw err; 
-        var db = conn.db("LTC");
-        // câu lệnh query select
-        var query = {}
-        db.collection("categories").find(query).toArray((err,result) => 
-        {
-            if (err) throw err;           
-            res.render('../views/admin/listcategory.ejs', {cates :result});
-            conn.close(); 
-        });           
-    });        
+router.post('/addproduct', upload.single('fileImage'), async function (req, res) {
+  var name = req.body.txtName;
+  var price = parseInt(req.body.txtPrice);
+  var catID = req.body.cmbCategory;
+  if (req.file) {
+    var image = req.file.buffer.toString('base64');
+    var now = new Date().getTime(); // milliseconds
+    var category = await CategoryDAO.selectByID(catID);
+    var product = { name: name, price: price, image: image, cdate: now, category: category };
+    var result = await ProductDAO.insert(product);
+    MyUtil.showAlertAndRedirect(res, 'Thành công!', './listproduct');
+  }
+  
+});
+router.post('/updateproduct', upload.single('fileImage'), async function (req, res) {
+  var _id = req.body.txtID;
+  var name = req.body.txtName;
+  var price = parseInt(req.body.txtPrice);
+  var catID = req.body.cmbCategory;
+  if (req.file) {
+    var image = req.file.buffer.toString('base64');
+  } else {
+    var dbProduct = await ProductDAO.selectByID(_id);
+    var image = dbProduct.image;
+  }
+  var now = new Date().getTime(); // milliseconds
+  var category = await CategoryDAO.selectByID(catID);
+  var product = { _id: _id, name: name, price: price, image: image, cdate: now, category: category };
+  var result = await ProductDAO.update(product);
+  MyUtil.showAlertAndRedirect(res, 'Thành công!', './listproduct');
+  // if (result) {
+  //   
+  // } else {
+  //   MyUtil.showAlertAndRedirect(res, 'SORRY BABY!', './listproduct');
+  // }
+});
+router.post('/deleteproduct', upload.single('fileImage'), async function (req, res) {
+  var _id = req.body.txtID;
+  var result = await ProductDAO.delete(_id);
+  MyUtil.showAlertAndRedirect(res, 'Thành công!', './listproduct');
+  // if (result) {
+  //   
+  // } else {
+  //   MyUtil.showAlertAndRedirect(res, 'SORRY BABY!', './listproduct');
+  // }
+});
+// order
+router.get('/listorder', async function (req, res) {
+  var orders = await OrderDAO.selectAll();
+  var _id = req.query.id; // /listorder?id=XXX
+  if (_id) {
+    var order = await OrderDAO.selectByID(_id);
+  }
+  res.render('../views/admin/listorder.ejs', { orders: orders, order: order });
+});
+router.get('/updatestatus', async function (req, res) {
+  var _id = req.query.id; // /updatestatus?status=XXX&id=XXX
+  var newStatus = req.query.status;
+  await OrderDAO.update(_id, newStatus);
+  res.redirect('./listorder?id=' + _id);
+});
+// customer
+router.get('/listcustomer', async function (req, res) {
+  var customers = await CustomerDAO.selectAll();
+  var _cid = req.query.cid; // /listcustomer?cid=XXX
+  if (_cid) {
+    var orders = await OrderDAO.selectByCustID(_cid);
+    var _oid = req.query.oid; // /listcustomer?cid=XXX&oid=XXX
+    if (_oid) {
+      var order = await OrderDAO.selectByID(_oid);
     }
-    else
-    {
-        res.redirect('login');
+  }
+  res.render('../views/admin/listcustomer.ejs', { custs: customers, orders: orders, order: order, custID: _cid });
+});
+router.get('/sendmail', async function (req, res) {
+  var _id = req.query.id; // /sendmail?id=XXX
+  var cust = await CustomerDAO.selectByID(_id);
+  if (cust) {
+    var result = await EmailUtil.send(cust.email, cust._id, cust.token);
+    if (result) {
+      MyUtil.showAlertAndRedirect(res, 'Hãy kiểm tra email nhé!', './listcustomer');
+    } else {
+      MyUtil.showAlertAndRedirect(res, 'Thất bại!', './listcustomer');
     }
+  } else {
+    res.redirect('./listcustomer');
+  }
 });
-//Thêm category
-router.get('/addcategory',(req,res)=>
-{
-    if (req.session.admin) 
-    {
-        res.render('../views/admin/addcategory.ejs');
-    }
-    else
-    {
-        res.redirect('login');
-    }
-});
-router.post('/addcategory',(req,res)=>
-{
-    var cname = req.body.catname;
-    //kết nối database
-    MongoClient.connect(url,(err, conn) =>
-    {
-        if (err) throw err; 
-        var db = conn.db("LTC");
-        // câu lệnh query insert
-        var category = {name : cname};
-        db.collection("categories").insertOne(category,(err,result) => 
-        {
-            if (err) throw err;
-            // kiểm tra nếu số lượng được thêm có lớn hơn không
-            // không rõ vì sao dùng insertOne không nhận thuộc tính insertedCount
-            // nên đành phải xoá bỏ validate
-            res.redirect('listcategory');
-            // if (result.insertedCount > 0) 
-            // {
-                //đoạn code dòng 140 vào đây
-            // }
-            // else
-            // {
-            //     res.redirect('addcategory')
-            // }
-            conn.close(); 
-        });           
-    }); 
-});
-// Xoá category
-router.get('/deletecategory',(req,res) => 
-{
-    var id = req.query.id;
-    //kết nối database
-    MongoClient.connect(url,(err, conn) =>
-    {
-        if (err) throw err; 
-        var db = conn.db("LTC");
-        // câu lệnh query delete
-        var ObjectId = require('mongodb').ObjectId;
-        var query = {_id: ObjectId(id) }; 
-        db.collection("categories").deleteOne(query,(err,result) => 
-        {
-            if (err) throw err;
-            res.redirect('listcategory');
-            conn.close(); 
-        });           
-    }); 
-});
-// Edit category
-router.get('/editcategory',(req,res) => 
-{
-    var id = req.query.id;
-    //kết nối database
-    MongoClient.connect(url,(err, conn) =>
-    {
-        if (err) throw err; 
-        var db = conn.db("LTC");
-        // câu lệnh query edit
-        var query = {_id : require('mongodb').ObjectId(id)};
-        db.collection("categories").findOne(query,(err,result) => 
-        {
-            if (err) throw err;
-            res.render('../views/admin/editcategory.ejs', {cate: result});
-            conn.close(); 
-        });           
-    }); 
-});
-router.post('/editcategory',(req,res) => 
-{
-    var cateid = req.body.cateid;
-    var catename = req.body.catename;
-    //kết nối database
-    MongoClient.connect(url,(err, conn) =>
-    {
-        if (err) throw err; 
-        var db = conn.db("LTC");
-        // câu lệnh query edit
-        var query = {_id : require('mongodb').ObjectId(cateid)};
-        var newValues = {$set : {name : catename}};
-        db.collection("categories").updateOne(query,newValues,(err,result) => 
-        {
-            // vẫn không rõ tại sao không nhận được thuộc tính nModified 
-            // nên không thể validate được
-            if (err) throw err;
-            res.redirect('listcategory');
-            // if (result.result.nModified > 0) 
-            // {
-            //    dòng thứ 207 vào đây
-            // }
-            // else
-            // {
-            //     res.redirect('editcategory');
-            // }
-            conn.close(); 
-        });           
-    }); 
+router.get('/deactive', async function (req, res) {
+  var _id = req.query.id; // /deactive?id=XXX&token=XXX
+  var token = req.query.token;
+  var result = await CustomerDAO.active(_id, token, 0);
+  MyUtil.showAlertAndRedirect(res, 'Thành công!', './listcustomer');
+  // if (result) {
+    
+  // } else {
+  //   MyUtil.showAlertAndRedirect(res, 'SORRY BABY!', './listcustomer');
+  // }
 });
 module.exports = router;

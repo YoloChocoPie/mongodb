@@ -1,0 +1,13 @@
+<div class="border-bottom">
+  <div class="float-left">
+    <%  if (session.customer) {  %>
+    Xin chào <b><%=session.customer.name%></b> | <a href="./logout">Đăng xuất</a> | <a href="./myprofile">Cá nhân</a> | <a href="./myorders">Món đã đặt</a>
+    <%  } else {  %>
+    <a href="./login">Đăng nhập</a> | <a href="./signup">Đăng kí</a>
+    <%  } %>
+  </div>
+  <div class="float-right">
+    <a href="./mycart">Giở hàng của bạn</a> đang có <b><%= (session.mycart) ? session.mycart.length : 0 %></b> món ăn
+  </div>
+  <div class="float-clear"></div>
+</div>

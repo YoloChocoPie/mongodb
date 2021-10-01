@@ -2,7 +2,7 @@
 
 var express = require('express');
 var app  = express();
-app.listen(3000);
+app.listen(process.env.PORT || 3000);
 
 //middlewares
 app.use(express.static('public'));
