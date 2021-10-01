@@ -170,5 +170,53 @@ router.get('/deletecategory',(req,res) =>
         });           
     }); 
 });
-
+// Edit category
+router.get('/editcategory',(req,res) => 
+{
+    var id = req.query.id;
+    //kết nối database
+    MongoClient.connect(url,(err, conn) =>
+    {
+        if (err) throw err; 
+        var db = conn.db("LTC");
+        // câu lệnh query edit
+        var query = {_id : require('mongodb').ObjectId(id)};
+        db.collection("categories").findOne(query,(err,result) => 
+        {
+            if (err) throw err;
+            res.render('../views/admin/editcategory.ejs', {cate: result});
+            conn.close(); 
+        });           
+    }); 
+});
+router.post('/editcategory',(req,res) => 
+{
+    var cateid = req.body.cateid;
+    var catename = req.body.catename;
+    //kết nối database
+    MongoClient.connect(url,(err, conn) =>
+    {
+        if (err) throw err; 
+        var db = conn.db("LTC");
+        // câu lệnh query edit
+        var query = {_id : require('mongodb').ObjectId(cateid)};
+        var newValues = {$set : {name : catename}};
+        db.collection("categories").updateOne(query,newValues,(err,result) => 
+        {
+            // vẫn không rõ tại sao không nhận được thuộc tính nModified 
+            // nên không thể validate được
+            if (err) throw err;
+            res.redirect('listcategory');
+            // if (result.result.nModified > 0) 
+            // {
+            //    dòng thứ 207 vào đây
+            // }
+            // else
+            // {
+            //     res.redirect('editcategory');
+            // }
+            conn.close(); 
+        });           
+    }); 
+});
 module.exports = router;

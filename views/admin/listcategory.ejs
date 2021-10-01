@@ -21,7 +21,10 @@
         <tr>
             <td><%= cat._id%></td>
             <td><%= cat.name%></td>
-            <td><a href="deletecategory?id=<%= cat._id%>">Delete</a></td>
+            <td>
+                <a href="editcategory?id=<%= cat._id%>">Edit</a>
+                <a href="deletecategory?id=<%= cat._id%>">Delete</a>
+            </td>
         </tr>
         <%}
         %>
